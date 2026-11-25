@@ -16,10 +16,10 @@
   padding-bottom:env(safe-area-inset-bottom,0px);
   color-scheme:dark;
 }
-html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+html{height:100%;width:100%;overflow:hidden;scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{
-  margin:0;height:100%;overflow:hidden;
+  margin:0;position:fixed;inset:0;overflow:hidden;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
   background:var(--bg) radial-gradient(ellipse at 50% 38%,#2a0f3d 0%,#140822 55%,#0b0416 100%);
   color:var(--ink);
@@ -30,7 +30,7 @@ body{
 .stage{position:relative;flex:none}
 canvas{display:block;image-rendering:-moz-crisp-edges;image-rendering:crisp-edges;image-rendering:pixelated;position:relative}
 .glow{
-  position:absolute;left:50%;top:35%;width:160%;aspect-ratio:1;border-radius:50%;
+  position:absolute;left:50%;top:40%;width:160%;aspect-ratio:1;border-radius:50%;
   transform:translate(-50%,-50%);pointer-events:none;will-change:opacity,transform;
   background:radial-gradient(circle,rgba(255,70,120,.75) 0%,rgba(255,50,110,.28) 26%,rgba(160,30,120,.10) 46%,transparent 66%);
 }
@@ -87,7 +87,7 @@ function frame(now){
   const time=(now-t0)/1000,dt=Math.min(.05,(now-last)/1000);last=now;fr++;
   const t=reduced?7:time%T,e=reduced?1:bloomAt(t);
   const sway=reduced?0:Math.sin(time*.8)*(1.2+1.6*e);
-  const cx=60+sway,cy=56,Rx=7+20*e+(reduced?0:Math.sin(time*2)*.5*e),Ry=12+10*e;
+  const cx=60+sway,cy=64,Rx=7+20*e+(reduced?0:Math.sin(time*2)*.5*e),Ry=12+10*e;
   const sx=y=>60+sway*Math.pow(Math.max(0,(H-y)/(H-cy)),1.6);
   buf.fill(0);
   for(const s of stars){if(Math.sin(time*2+s.p)>-.2)buf[s.y*W+s.x]=SP[s.c]}
@@ -182,12 +182,13 @@ function frame(now){
 addEventListener('pointerdown',()=>{
   for(let i=0;i<28;i++){
     const a=Math.random()*6.283,sp=10+Math.random()*16;
-    spark(60,56,Math.cos(a)*sp,Math.sin(a)*sp,.8+Math.random()*.8);
+    spark(60,64,Math.cos(a)*sp,Math.sin(a)*sp,.8+Math.random()*.8);
   }
 });
 
 function fit(){
-  let s=Math.min(innerWidth*.96/W,(innerHeight-90)/H);
+  const vw=document.documentElement.clientWidth||innerWidth,vh=window.innerHeight;
+  let s=Math.min(vw*.94/W,(vh-100)/H);
   s=s>=2?Math.floor(s):Math.max(.5,s);
   cv.style.width=W*s+'px';cv.style.height=H*s+'px';
 }
