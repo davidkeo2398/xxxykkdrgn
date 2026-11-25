@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0416">
+<meta name="color-scheme" content="dark">
+<title>Pixel Rose</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B9%3C/text%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0416; --ink:#ffc2d1;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{
+  margin:0;height:100%;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:var(--bg) radial-gradient(ellipse at 50% 38%,#2a0f3d 0%,#140822 55%,#0b0416 100%);
+  color:var(--ink);
+  font-family:"Press Start 2P","Courier New",monospace;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  -webkit-user-select:none;user-select:none;
+}
+.stage{position:relative;flex:none}
+canvas{display:block;image-rendering:-moz-crisp-edges;image-rendering:crisp-edges;image-rendering:pixelated;position:relative}
+.glow{
+  position:absolute;left:50%;top:35%;width:160%;aspect-ratio:1;border-radius:50%;
+  transform:translate(-50%,-50%);pointer-events:none;will-change:opacity,transform;
+  background:radial-gradient(circle,rgba(255,70,120,.75) 0%,rgba(255,50,110,.28) 26%,rgba(160,30,120,.10) 46%,transparent 66%);
+}
+.glow.top{width:90%;mix-blend-mode:screen;z-index:2}
+h1{margin:0;font-size:clamp(10px,2.8vw,15px);font-weight:400;letter-spacing:.18em;text-shadow:0 0 12px rgba(255,60,110,.85)}
+p{margin:0;font-size:clamp(7px,1.8vw,9px);opacity:.55;letter-spacing:.08em}
+</style>
+</head>
+<body>
+<main class="stage" id="stage">
+  <div class="glow" id="g1"></div>
+  <canvas id="c" aria-label="Animated pixel art rose blooming in a loop" role="img"></canvas>
+  <div class="glow top" id="g2"></div>
+</main>
+<h1>Pixel Rose</h1>
+<p>tap for sparkles</p>
+
+<script>
+(()=>{
+const W=120,H=160,T=14;
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+cv.width=W;cv.height=H;
+const img=ctx.createImageData(W,H),buf=new Uint32Array(img.data.buffer);
+const pk=h=>{const n=parseInt(h.slice(1),16);return((255<<24)|((n&255)<<16)|(((n>>8)&255)<<8)|((n>>16)&255))>>>0};
+const P=['#2a0614','#5c0a24','#8e0f33','#bf1740','#e8325a','#ff6b8b','#ffb3c4'].map(pk);
+const G=['#0b2a1a','#145c33','#1f8a49','#4cc973'].map(pk);
+const SP=['#ffd9e2','#ff9db3','#ffe7a3'].map(pk);
+const BY=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+const thr=(x,y)=>(BY[((y&3)<<2)|(x&3)]+.5)/16;
+const ease=x=>x*x*(3-2*x);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const g1=document.getElementById('g1'),g2=document.getElementById('g2');
+
+/* timeline: bud -> bloom -> hold (petals fall) -> close -> loop */
+function bloomAt(t){
+  if(t<1.2)return 0;
+  if(t<6.5)return ease((t-1.2)/5.3);
+  if(t<11)return 1;
+  return 1-ease((t-11)/3);
+}
+
+/* stars */
+const stars=[];let sd=7;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;
+for(let i=0;i<34;i++)stars.push({x:Math.floor(rnd()*W),y:Math.floor(rnd()*H*.8),p:rnd()*6.28,c:i%3});
+
+const leaves=[{by:112,a:-.55,L:30,w:8},{by:134,a:Math.PI+.5,L:28,w:7.5}];
+const parts=[];
+const put=(x,y,c)=>{if(x>=0&&y>=0&&x<W&&y<H)buf[y*W+x]=c};
+const spark=(x,y,vx,vy,l)=>parts.push({x,y,vx,vy,life:l,max:l,c:SP[(Math.random()*3)|0]});
+
+let t0=performance.now(),last=t0,fr=0;
+function frame(now){
+  const time=(now-t0)/1000,dt=Math.min(.05,(now-last)/1000);last=now;fr++;
+  const t=reduced?7:time%T,e=reduced?1:bloomAt(t);
+  const sway=reduced?0:Math.sin(time*.8)*(1.2+1.6*e);
+  const cx=60+sway,cy=56,Rx=7+20*e+(reduced?0:Math.sin(time*2)*.5*e),Ry=12+10*e;
+  const sx=y=>60+sway*Math.pow(Math.max(0,(H-y)/(H-cy)),1.6);
+  buf.fill(0);
+  for(const s of stars){if(Math.sin(time*2+s.p)>-.2)buf[s.y*W+s.x]=SP[s.c]}
+  const L2=leaves.map(l=>{const a=l.a+sway*.012;return{bx:sx(l.by),by:l.by,co:Math.cos(a),si:Math.sin(a),L:l.L,w:l.w}});
+  const sy0=cy+Ry*.7,SL=13,sepHW=Rx*.5+2;
+
+  for(let y=0;y<H;y++){
+    const xs=Math.round(sx(y));
+    for(let x=0;x<W;x++){
+      let c=0;const d4=thr(x,y);
+      /* leaves */
+      for(const l of L2){
+        const px=x-l.bx,py=y-l.by,u=px*l.co+py*l.si;
+        if(u<0||u>l.L)continue;
+        const v=-px*l.si+py*l.co,hw=l.w*Math.pow(Math.sin(Math.PI*u/l.L),.75)*(1-.25*u/l.L),av=Math.abs(v);
+        if(av<=hw){
+          let i;
+          if(av>hw-.9)i=0;else if(av<.7)i=3;else i=clamp(Math.floor(2-(v/hw)*.9+d4),1,3);
+          c=G[i];
+        }
+      }
+      /* stem + thorns */
+      if(y>cy+Ry*.6){
+        const d=x-xs;
+        if(d>=-1&&d<=1)c=G[d<0?3:d===0?2:1];
+        else if((y===98&&d===2)||(y===121&&d===-2))c=G[1];
+      }
+      /* sepals */
+      if(y>=sy0&&y<=sy0+SL){
+        const k=(y-sy0)/SL,d=Math.abs(x-cx);
+        const hw=(sepHW*Math.pow(1-k,.7)+1.5)*(.85+.15*Math.cos(d*.8));
+        if(d<=hw)c=G[d>hw-1?0:(x<cx-hw*.3?3:2)];
+      }
+      /* rose head */
+      const dx=x-cx,dy=y-cy;
+      let ny=dy/Ry,nx=dx/Rx;
+      nx*=1+(1-e)*.7*Math.max(ny,-.2);
+      const r2=nx*nx+ny*ny;
+      if(r2<=1.2){
+        const r=Math.sqrt(r2),th=Math.atan2(ny,nx);
+        const s=Math.abs(Math.sin(2.5*th+.5));
+        const edge=1-.15*e*(1-Math.sqrt(s));
+        if(r<=edge){
+          let i;
+          if((edge-r)*Math.min(Rx,Ry)<1.1)i=0;
+          else{
+            const p=r*(3+1.4*e)+th/Math.PI,f=p-Math.floor(p),band=Math.floor(p);
+            const lit=-nx*.35-ny*.45;
+            const v=1.6+r*2.6+lit*1.7+((band&1)?.35:-.1);
+            i=clamp(Math.floor(v+d4),1,6);
+            if(f<.2&&r>.12)i=Math.max(1,i-2);
+            else if(lit>.28&&r>.5&&f>.72)i=Math.min(6,i+1);
+            if(e>.3&&r>.55&&s<.07)i=1;
+            if(r<.1)i=1;
+          }
+          c=P[i];
+        }
+      }
+      if(c)buf[y*W+x]=c;
+    }
+  }
+
+  /* particles: sparkles + falling petals */
+  if(e>.45&&parts.length<80&&Math.random()<dt*14*e)
+    spark(cx+(Math.random()-.5)*Rx*2.2,cy+(Math.random()-.5)*Ry*2.2,(Math.random()-.5)*4,-(4+Math.random()*8),1.2+Math.random()*1.4);
+  if(!reduced&&t>8.3&&t<12.3&&Math.random()<dt*2.2)
+    parts.push({petal:1,x:cx+(Math.random()-.5)*Rx*1.4,y:cy+Ry*(.3+Math.random()*.3),vx:0,vy:7+Math.random()*5,life:5,max:5,ph:Math.random()*6});
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];p.life-=dt;
+    if(p.life<=0||p.y>H){parts.splice(i,1);continue}
+    if(p.petal)p.vx=Math.sin(time*2+p.ph)*6;
+    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    const x=Math.round(p.x),y=Math.round(p.y);
+    if(p.life<.35&&((x+y+fr)&1))continue;
+    if(p.petal){
+      put(x,y,P[5]);put(x+1,y,P[5]);put(x+2,y,P[4]);put(x,y+1,P[4]);put(x+1,y+1,P[3]);
+    }else{
+      put(x,y,p.c);
+      if(p.life>p.max*.5){put(x-1,y,p.c);put(x+1,y,p.c);put(x,y-1,p.c);put(x,y+1,p.c)}
+    }
+  }
+  ctx.putImageData(img,0,0);
+
+  /* bloom glow */
+  const pulse=reduced?0:Math.sin(time*3);
+  g1.style.opacity=(.12+.7*e+.08*e*pulse).toFixed(3);
+  g1.style.transform='translate(-50%,-50%) scale('+(.7+.5*e).toFixed(3)+')';
+  g2.style.opacity=(.04+.32*e*(.75+.25*pulse)).toFixed(3);
+  requestAnimationFrame(frame);
+}
+
+addEventListener('pointerdown',()=>{
+  for(let i=0;i<28;i++){
+    const a=Math.random()*6.283,sp=10+Math.random()*16;
+    spark(60,56,Math.cos(a)*sp,Math.sin(a)*sp,.8+Math.random()*.8);
+  }
+});
+
+function fit(){
+  let s=Math.min(innerWidth*.96/W,(innerHeight-90)/H);
+  s=s>=2?Math.floor(s):Math.max(.5,s);
+  cv.style.width=W*s+'px';cv.style.height=H*s+'px';
+}
+addEventListener('resize',fit);addEventListener('orientationchange',fit);
+fit();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
